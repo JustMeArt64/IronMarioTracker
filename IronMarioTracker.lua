@@ -668,53 +668,68 @@ local function render_ui()
     end
 
     -- Skip rendering if no changes in state (to save processing).
-    if tablex.deepcompare(state, last_state) then
-        return
-    end
+    --if tablex.deepcompare(state, last_state) then
+        --return
+    --end
 
+
+
+	-- temporary fix to position UI elements---
     -- Draw the background image if one is selected.
+	bg_x = 635;
     if CONFIG.BACKGROUND_IMAGE ~= "(None)" then
-        gui.drawImage("img/bg/" .. CONFIG.BACKGROUND_IMAGE .. ".jpg", game_width, 0, ui_width, game_height)
+        gui.drawImage("img/bg/" .. CONFIG.BACKGROUND_IMAGE .. ".jpg", bg_x, 0, 222, 650)
     end
 
-    -- Draw the tracker logo in the bottom right of the game screen.
-    gui.drawImage("img/logo.png", game_width, game_height - (logo_size + 20), logo_size, logo_size)
+ 
 
-    -- Draw the tracker title centered in the UI panel.
-    gui.drawString(game_width + math.floor(ui_width / 2), font_size, "IronMario Tracker", "lightblue", nil, font_size,
+	local text_x = 0;
+	-- Draw the tracker title centered in the UI panel.
+	text_x = 420+game_width
+    gui.drawString(text_x, font_size, "IronMario Tracker", "lightblue", nil, 14,
         CONFIG.FONT_FACE, nil, "center")
 
     -- Render attempt number.
-    gui.drawString(game_width, font_size * 3, "Attempt #" .. CONFIG.USER.ATTEMPTS, nil, nil, font_size, CONFIG.FONT_FACE)
+	text_x = 370+game_width
+	attempt_size = 16
+    gui.drawString(text_x, font_size * 3, "Attempt #" .. CONFIG.USER.ATTEMPTS, nil, nil, attempt_size, CONFIG.FONT_FACE)
 
     -- Render elapsed time depending on whether the run is still active.
+	text_x = 330+game_width
+	runtime_size = 20;
     if state.run.status == run_state.ACTIVE then
-        gui.drawString(game_width, font_size * 5, "Time: " .. format_time(os.time() - state.run.start_time), nil, nil,
-            font_size, CONFIG.FONT_FACE)
+        gui.drawString(text_x, 40, "Time: " .. format_time(os.time() - state.run.start_time), nil, nil,
+            runtime_size, CONFIG.FONT_FACE)
     else
-        gui.drawString(game_width, font_size * 5, "Time: " .. format_time(state.run.end_time - state.run.start_time),
-            nil, nil, font_size, CONFIG.FONT_FACE)
+        gui.drawString(text_x, 40, "Time: " .. format_time(state.run.end_time - state.run.start_time),
+            nil, nil, runtime_size, CONFIG.FONT_FACE)
     end
+
+
+
 
     -- Render current star count and personal best (PB) stars.
-    gui.drawString(game_width, font_size * 4, "Stars: " .. state.run.stars, nil, nil, font_size, CONFIG.FONT_FACE)
-    gui.drawString(game_width + 23 + math.floor(ui_width / 3), font_size * 4, "PB: " .. CONFIG.USER.PB_STARS, "yellow", nil,
-        font_size, CONFIG.FONT_FACE)
+	text_x = 320+game_width
+	stars_size = 20
+    gui.drawString(text_x, 60, "Stars: " .. state.run.stars, nil, nil, stars_size, CONFIG.FONT_FACE)
+	-- PB stars
+	text_x = 444+game_width
+	PB_stars_size = stars_size
+    gui.drawString(text_x, 60, "PB: " .. CONFIG.USER.PB_STARS, "yellow", nil, PB_stars_size, CONFIG.FONT_FACE)
 
     -- Render current level name and run seed.
-    gui.drawString(game_width, font_size * 6, "Level: " .. get_level_name(state.game.level_id), nil, nil, font_size,
-        CONFIG.FONT_FACE)
-    gui.drawString(game_width, font_size * 7, "Seed: " .. state.run.seed, nil, nil, font_size, CONFIG.FONT_FACE)
+    --gui.drawString(game_width, font_size * 6, "Level: " .. get_level_name(state.game.level_id), nil, nil, font_size, CONFIG.FONT_FACE)
+    --gui.drawString(game_width, font_size * 7, "Seed: " .. state.run.seed, nil, nil, font_size, CONFIG.FONT_FACE)
 
     -- If the run is over (pending or complete), display "RUN OVER!" and "NEW PB!" if applicable.
-    if state.run.status == run_state.PENDING or state.run.status == run_state.COMPLETE then
-        gui.drawString(game_width + math.floor((ui_width / 3) * 2), font_size * 3, "RUN OVER!", "red", nil, font_size,
-            CONFIG.FONT_FACE)
-        if state.run.pb then
-            gui.drawString(game_width + math.floor((ui_width / 3) * 2), font_size * 4, "NEW PB!", "lightgreen", nil,
-                font_size, CONFIG.FONT_FACE)
-        end
-    end
+    --if state.run.status == run_state.PENDING or state.run.status == run_state.COMPLETE then
+        --gui.drawString(game_width + math.floor((ui_width / 3) * 2), font_size * 3, "RUN OVER!", "red", nil, font_size,
+            --CONFIG.FONT_FACE)
+        --if state.run.pb then
+            --gui.drawString(game_width + math.floor((ui_width / 3) * 2), font_size * 4, "NEW PB!", "lightgreen", nil,
+                --font_size, CONFIG.FONT_FACE)
+        --end
+    --end
 
     -- Define an ordered list of level abbreviations for displaying the warp map and star counts.
     local ordered_keys = {"BoB", "WF", "JRB", "CCM", "BBH", "HMC", "LLL", "SSL", "DDD", "SL", "WDW", "TTM", "THI",
@@ -724,13 +739,15 @@ local function render_ui()
     local left_col_x = game_width
     local right_col_x = game_width + math.floor(ui_width / 2)
 
-    -- Render the warp map header.
-    local warp_header_y = font_size * 9
-    gui.drawString(game_width + math.floor(ui_width / 2), warp_header_y, "== Warp Map ==", "orange", nil, font_size,
+    -- Render the warp map header
+	local warpmap_header_x = 420 + game_width
+    local warpmap_header_y = 80
+	local warp_size = 18
+    gui.drawString(warpmap_header_x, warpmap_header_y, "== Warp Map ==", "orange", nil, warp_size,
         CONFIG.FONT_FACE, nil, "center")
-    local warp_table_start_y = warp_header_y + (font_size * 2)
-
-    -- Build a table of warp entries from the state's warp map using the ordered keys.
+ 
+	-- do warp table
+	local warp_table_start_y = warpmap_header_y + 40
     local warp_entries = {}
     for _, key in ipairs(ordered_keys) do
         if state.run.warp_map[key] then
@@ -740,8 +757,10 @@ local function render_ui()
             })
         end
     end
-
     -- Render warp entries in two columns.
+	local warp_entry_x = game_width + 51
+	local warp_entry_y = warpmap_header_y + 22
+	local warp_entry_font_size = 15
     for i, entry in ipairs(warp_entries) do
         local col, row
         if i <= 12 then
@@ -751,10 +770,9 @@ local function render_ui()
             col = 2
             row = i - 12
         end
-        local x = (col == 1) and left_col_x or right_col_x
-        local y = warp_table_start_y + (row - 1) * font_size
-        gui.drawString(x + (ui_width / 4), y, string.format("%s → %s", entry.key, entry.value), nil, nil, font_size,
-            CONFIG.FONT_FACE, nil, "center")
+        local dx = (col == 1) and left_col_x or right_col_x
+        local dy = (row - 1) * font_size
+        gui.drawString(dx+warp_entry_x, dy+warp_entry_y, string.format("%s → %s", entry.key, entry.value), nil, nil, warp_entry_font_size, CONFIG.FONT_FACE, nil, "center")
     end
 
     -- Calculate vertical spacing based on the number of warp entries rendered.
@@ -825,8 +843,6 @@ local function render_ui()
 
 	-- show current song
 	local current_song_title = get_song_name(state.game.song)
-	gui.use_surface("client") -- set client gfx surface
-	gui.clearGraphics()
 	if current_song_title ~= "no song info" then
 		if CONFIG.SHOW_SONG_TITLE or USER_CONFIG.SHOW_SONG_TITLE then
 			local mus_note_bot_y = client.screenheight() - 32
@@ -836,10 +852,18 @@ local function render_ui()
 			TextHelper.draw(39, mus_bottom_y, current_song_title, "white", 16)
 		end
 	end
-	gui.use_surface("emu") -- set back to Emu gfx surface
+	--gui.use_surface("emu") -- set back to Emu gfx surface
+
+
+
+	-- Draw the tracker logo in the bottom right of the game screen.
+	local logo_x = 330+game_width
+	local logo_y = 130+game_height
+    gui.drawImage("img/logo.png", logo_x, logo_y, 70, 70)
+
 
     -- Display version information and credits at the bottom right of the UI.
-    gui.drawString(game_width + ui_width, game_height - 5 - font_size,
+    gui.drawString(300 + game_width + ui_width, game_height - 5 - font_size,
         "v" .. CONFIG.TRACKER_VERSION .. ' by WaffleSmacker and KaaniDog', "gray", nil,
         math.max(math.floor(font_size / 2), 8), CONFIG.FONT_FACE, nil, "right")
 end
@@ -912,6 +936,8 @@ gui.clearGraphics() -- Clear GFX just in-case
 VERS_COMPATIBLE = getRandomizerVersion() == FOR_IRONMARO_VERSION and true or false
 -- **************************** Main loop: executes every frame ****************************
 while VERS_COMPATIBLE do
+	gui.use_surface("client") -- set client gfx surface
+
     -- Process on every other frame to reduce CPU load.
     if emu.framecount() % 2 == 0 then
         -- Update game state if the run isn't already pending (i.e., if it's still in progress).
