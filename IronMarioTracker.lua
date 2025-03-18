@@ -613,10 +613,70 @@ local function save_config()
     end
 end
 
+-- Helper function to calculate accurate string width
+function get_text_width(text, upper_width, lower_width)
+    local width = 0
+    for i = 1, #text do
+        local char = text:sub(i, i)
+        if char:match("[A-Z0-9]") then
+            width = width + upper_width  -- Uppercase, numbers, colon
+        else
+            width = width + lower_width  -- Lowercase and narrow chars
+        end
+    end
+    return width
+end
+-- Function to render the stars for the UI
+function render_stars_in_GUI(star_data, start_x, start_y)
+    local star_size = 16     -- Icon size
+    local star_padding = 2   -- Space between stars
+    local upper_width = 8    -- Width for uppercase, numbers, and symbols
+    local lower_width = 8   -- Width for lowercase letters
+
+    -- Sort keys for consistency
+    local ordered_keys = {}
+    for key in pairs(star_data) do
+        table.insert(ordered_keys, key)
+    end
+    table.sort(ordered_keys)
+
+    -- Iterate through each level and draw label + stars in one row
+    for i, key in ipairs(ordered_keys) do
+        local count = star_data[key]
+        if count and count > 0 then
+            -- Compute row y-position
+            local row_y = start_y + (i - 1) * (star_size + 6)
+
+            -- Compute the exact text width
+            local GUI_TEXT_STR = key .. ":"
+            local text_width = get_text_width(GUI_TEXT_STR, upper_width, lower_width)
+
+            -- Draw level name
+            local GUI_TEXT_SIZE = 13
+            texthelper.draw(start_x, row_y, GUI_TEXT_STR, "white", GUI_TEXT_SIZE)
+
+            -- Compute star start position
+            local star_start_x = start_x + text_width
+
+            -- Draw stars next to the label
+            for j = 1, count do
+                local x = star_start_x + (j - 1) * (star_size + star_padding) + 2
+                gui.drawImage("img/star.png", x, row_y - (star_size*0.18), star_size, star_size)
+            end
+        end
+    end
+end
+
 -- Render the on-screen UI overlay with current run and game data.
 local function render_ui()
+	local client_width  = client.screenwidth()
+	local client_height = client.screenheight()
     local game_width = client.bufferwidth() -- Get current game screen width.
     local game_height = client.bufferheight() -- Get current game screen height.
+
+	-- the area in which iron mario tracker is drawn; struct: RECT
+	local ironarea_x = client_width - 218; -- ironmario area x
+	local ironarea_y = 0; -- ironmario area y
 
     -- Calculate extra UI width based on aspect ratio and game width.
     local ui_width = math.floor((game_height * (16 / 9)) - game_width) - 20
@@ -627,7 +687,8 @@ local function render_ui()
 
     local logo_size = math.floor(game_height / 12) -- Define icon size for logos, stars, etc.
 
-    -- Set extra padding for the game screen to accommodate the UI.
+    -- make room for our tracker on the right side of client
+	-- by making a bunch of empty space
     client.SetGameExtraPadding(0, 0, ui_width + 20, 0)
 
     -- Call a placeholder function if the left mouse button is pressed when the mouse is within the logo image.
@@ -668,11 +729,9 @@ local function render_ui()
     end
 
     -- Skip rendering if no changes in state (to save processing).
-    --if tablex.deepcompare(state, last_state) then
-        --return
-    --end
-
-
+    if tablex.deepcompare(state, last_state) then
+        return
+    end
 
 	-- temporary fix to position UI elements---
     -- Draw the background image if one is selected.
@@ -680,8 +739,6 @@ local function render_ui()
     if CONFIG.BACKGROUND_IMAGE ~= "(None)" then
         gui.drawImage("img/bg/" .. CONFIG.BACKGROUND_IMAGE .. ".jpg", bg_x, 0, 222, 650)
     end
-
- 
 
 	local text_x = 0;
 	-- Draw the tracker title centered in the UI panel.
@@ -704,9 +761,6 @@ local function render_ui()
         gui.drawString(text_x, 40, "Time: " .. format_time(state.run.end_time - state.run.start_time),
             nil, nil, runtime_size, CONFIG.FONT_FACE)
     end
-
-
-
 
     -- Render current star count and personal best (PB) stars.
 	text_x = 320+game_width
@@ -731,169 +785,143 @@ local function render_ui()
         --end
     --end
 
-    -- Define an ordered list of level abbreviations for displaying the warp map and star counts.
-    local ordered_keys = {"BoB", "WF", "JRB", "CCM", "BBH", "HMC", "LLL", "SSL", "DDD", "SL", "WDW", "TTM", "THI",
-                          "TTC", "RR", "PSS", "SA", "WMotR", "Wing", "Metal", "Vanish", "BitDW", "BitFS", "BitS"}
 
-    -- Calculate positions for left and right columns.
-    local left_col_x = game_width
-    local right_col_x = game_width + math.floor(ui_width / 2)
 
-    -- Render the warp map header
-	local warpmap_header_x = 420 + game_width
-    local warpmap_header_y = 80
-	local warp_size = 18
-    gui.drawString(warpmap_header_x, warpmap_header_y, "== Warp Map ==", "orange", nil, warp_size,
-        CONFIG.FONT_FACE, nil, "center")
- 
-	-- do warp table
-	local warp_table_start_y = warpmap_header_y + 40
-    local warp_entries = {}
-    for _, key in ipairs(ordered_keys) do
-        if state.run.warp_map[key] then
-            table.insert(warp_entries, {
-                key = key,
-                value = state.run.warp_map[key]
-            })
+
+-- Define an ordered list of level abbreviations for displaying the warp map and star counts.
+local ordered_keys = {"BOB", "WF", "JRB", "CCM", "BBH", "HMC", "LLL", "SSL", "DDD", "SL", "WDW", "TTM", "THI",
+                      "TTC", "RR", "PSS", "SA", "WMotR", "Wing", "Metal", "Vanish", "BitDW", "BitFS", "BitS"}
+
+-- Render the warp map header
+local warpmap_header_x, warpmap_header_y, warp_entry_font_size = 420 + game_width, 80, 15
+gui.drawString(warpmap_header_x, warpmap_header_y, "== Warp Map ==", "orange", nil, 17, CONFIG.FONT_FACE, nil, "center")
+
+-- Collect warp entries with case-insensitive key matching
+local warp_entries = {}
+for _, key in ipairs(ordered_keys) do
+    for map_key, map_value in pairs(state.run.warp_map) do
+        if string.upper(map_key) == key then
+            table.insert(warp_entries, { key = key, value = map_value })
+            break
         end
     end
-    -- Render warp entries in two columns.
-	local warp_entry_x = game_width + 51
-	local warp_entry_y = warpmap_header_y + 22
-	local warp_entry_font_size = 15
-    for i, entry in ipairs(warp_entries) do
-        local col, row
-        if i <= 12 then
-            col = 1
-            row = i
-        else
-            col = 2
-            row = i - 12
-        end
-        local dx = (col == 1) and left_col_x or right_col_x
-        local dy = (row - 1) * font_size
-        gui.drawString(dx+warp_entry_x, dy+warp_entry_y, string.format("%s → %s", entry.key, entry.value), nil, nil, warp_entry_font_size, CONFIG.FONT_FACE, nil, "center")
-    end
-
-    -- Calculate vertical spacing based on the number of warp entries rendered.
-    local warp_rows_used = (#warp_entries > 0) and math.min(12, #warp_entries) or 1
-
-    -- Render the "Stars Collected" header.
-    local star_header_y = warp_table_start_y + ((warp_rows_used + 1) * (font_size))
-    gui.drawString(game_width + math.floor(ui_width / 2), star_header_y, "== Stars Collected ==", "yellow", nil,
-        font_size, CONFIG.FONT_FACE, nil, "center")
-    local star_table_start_y = star_header_y + (font_size * 2)
-
-    -- Build a table of star entries from the state's star map using the ordered keys.
-    local star_entries = {}
-    for _, key in ipairs(ordered_keys) do
-        if state.run.star_map[key] then
-            table.insert(star_entries, {
-                key = key,
-                count = state.run.star_map[key]
-            })
-        end
-    end
-
-    -- Determine maximum label widths for left and right columns to align star icons.
-    local left_max_width = 0
-    local right_max_width = 0
-    for i, entry in ipairs(star_entries) do
-        local label_width = string.len(entry.key) * char_width
-        if i <= 12 then
-            if label_width > left_max_width then
-                left_max_width = label_width
-            end
-        else
-            if label_width > right_max_width then
-                right_max_width = label_width
-            end
-        end
-    end
-
-    -- Render star entries along with star icons for each collected star.
-    for i, entry in ipairs(star_entries) do
-        local col, row
-        if i <= 12 then
-            col = 1
-            row = i
-        else
-            col = 2
-            row = i - 12
-        end
-        local x = (col == 1) and left_col_x or right_col_x
-        local y = star_table_start_y + (row - 1) * (font_size + 3)
-        gui.drawString(x, y, entry.key, nil, nil, font_size, CONFIG.FONT_FACE)
-
-        local spacing = font_size
-        local max_label_width = (col == 1) and left_max_width or right_max_width
-        local icons_start_x = x + max_label_width + spacing
-
-        for j = 1, entry.count do
-            gui.drawImage("img/star.png", icons_start_x + (j - 1) * font_size, y + (font_size * 0.1), font_size * 0.8,
-                font_size * 0.8)
-        end
-    end
-
-    -- Optionally display the current song title if the toggle is enabled.
-    -- if USER_CONFIG.SHOW_SONG_TITLE and CONFIG.MUSIC_DATA.SONG_MAP[state.game.song] then
-        -- gui.drawString(20 + math.floor(char_width / 2), game_height - (20 + math.floor(font_size * 1.25)),
-            -- get_song_name(state.game.song), nil, nil, font_size, CONFIG.FONT_FACE)
-    -- end
-
-	-- show current song
-	local current_song_title = get_song_name(state.game.song)
-	if current_song_title ~= "no song info" then
-		if CONFIG.SHOW_SONG_TITLE or USER_CONFIG.SHOW_SONG_TITLE then
-			local mus_note_bot_y = client.screenheight() - 32
-			gui.drawImage("img/music_note2.png", 12, mus_note_bot_y)
-			local mus_bottom_y = mus_note_bot_y + 3
-			TextHelper.draw(40, mus_bottom_y+1, current_song_title, "black", 16)
-			TextHelper.draw(39, mus_bottom_y, current_song_title, "white", 16)
-		end
-	end
-	--gui.use_surface("emu") -- set back to Emu gfx surface
-
-
-
-	-- Draw the tracker logo in the bottom right of the game screen.
-	local logo_x = 330+game_width
-	local logo_y = 130+game_height
-    gui.drawImage("img/logo.png", logo_x, logo_y, 70, 70)
-
-
-    -- Display version information and credits at the bottom right of the UI.
-    gui.drawString(300 + game_width + ui_width, game_height - 5 - font_size,
-        "v" .. CONFIG.TRACKER_VERSION .. ' by WaffleSmacker and KaaniDog', "gray", nil,
-        math.max(math.floor(font_size / 2), 8), CONFIG.FONT_FACE, nil, "right")
 end
+
+-- Draw warp entries and track the last y position
+local warp_entry_last_y = warpmap_header_y + 22
+for _, entry in ipairs(warp_entries) do
+    if entry.key and entry.value and entry.value ~= "" then  -- Ensure valid data
+        TextHelper.draw(ironarea_x, warp_entry_last_y, string.format("%s → %s", entry.key, entry.value))
+        warp_entry_last_y = warp_entry_last_y + warp_entry_font_size -- Update last y position
+    end
+end
+
+-- ****************** Render the stars the player has gotten ******************
+-- Store last drawn y-position for further use
+local warp_entry_height = warp_entry_last_y	
+
+-- Render the "Stars Collected" header.
+local star_header_x = client_width;
+local star_header_y = warp_entry_height
+local star_header_size = 16
+gui.drawString(star_header_x, star_header_y, "== Stars Collected ==", "yellow", nil,
+	star_header_size, CONFIG.FONT_FACE, nil, "right")
+
+-- Draw stars
+stars_dx = ironarea_x
+stars_dy = ironarea_y + star_header_y + 18
+stars_use_table = {}
+
+-- Say whether we are debugging stars rendering or not...
+DEBUG_STARS = false
+
+-- If DEBUGGING stars (debug/dummy version)...
+if DEBUG_STARS then
+    -- Fake state table with dummy star_map for debugging
+    local fake_state = {
+        run = {
+            star_map = {
+				-- 'max' stars should be 7
+                ["BoB"] = 2,   -- Dummy key/count pairs
+                ["WF"] = 7,   -- Zero to test filtering
+                ["Vanish"] = 4,
+				["Secret1"] = 1
+            }
+        }
+    }
+    -- set current table to use to be a fake one
+	stars_use_table = fake_state.run.star_map
+end
+if not DEBUG_STARS then
+	-- use real map if not debugging
+	stars_use_table = state.run.star_map
+end
+-- render the current star map/table, whichever it was choosen to be
+render_stars_in_GUI(stars_use_table, stars_dx, stars_dy)
+
+
+-- ******* DISPLAY CURRENT SONG ******* 
+local current_song_title = get_song_name(state.game.song)
+if current_song_title ~= "no song info" then
+	if CONFIG.SHOW_SONG_TITLE or USER_CONFIG.SHOW_SONG_TITLE then
+		local mus_note_bot_y = client_height - 30
+		gui.drawImage("img/music_note2.png", 10, mus_note_bot_y)
+		local mus_bottom_y = mus_note_bot_y + 6
+		TextHelper.draw(39, mus_bottom_y+1, current_song_title, "black", 13)
+		TextHelper.draw(38, mus_bottom_y, current_song_title, "white", 13)
+	end
+end
+
+-- *******  Draw the tracker logo in the bottom right of the game screen ******* 
+local logo_x = client_width - 80
+local logo_y = client_height - 80
+gui.drawImage("img/logo.png", logo_x, logo_y, 75, 75)
+
+-- Display version information and credits at the bottom right of the UI.
+--text_credits_x = 520 + game_width;
+--text_credits_y = client_height - 16;
+--gui.drawString(text_credits_x, text_credits_y,
+	--"v" .. CONFIG.TRACKER_VERSION .. ' by WaffleSmacker and KaaniDog', "white", nil,
+	--12, CONFIG.FONT_FACE, nil, "right")
+
+end -- end of render_ui()
 
 -- ******************** 'HELPER' FUNCS GO HERE ******************** 
 -- helper function to get calculate font size/etc and screen-spsace/etc
 	-- *** to be implemented ***
 -- helper function to draw text 'GUD'  >:)
 -- can be underloaded or overloaded with any drawstring args
+
+-- TextHelper.draw(x, y, str, color, size)
+    -- x: number or "x/y/text" string
+    -- y: number (opt if x is string)
+    -- str: string (opt if x is string)
+    -- color: string (def "white")
+    -- size: number or string (def 10)
 TextHelper = {}
-TextHelper.size_tbl = { tiny = 8, smol = 9, small = 10, medium = 11, large = 12, big = 14, huge = 16 }
+TextHelper.size_tbl = { tiny = 8, smol = 9, small = 10, medium = 11, large = 20, big = 14, huge = 16 }
 function TextHelper.draw(x, y, str, color, size)
     if type(x) == "string" and not y then
         local parts = {}
         for p in x:gmatch("[^/]+") do table.insert(parts, p) end
         x, y, str = tonumber(parts[1]) or 0, tonumber(parts[2]) or 0, parts[3] or x
     end
-
     -- Map size strings to numbers, default to 10 if not specified
     local font_size = 10
     if size then
         if type(size) == "number" then
             font_size = size
         elseif type(size) == "string" then
-            font_size = TextHelper.sizes[size:lower()] or 11
+            font_size = TextHelper.size_tbl[size:lower()] or 10
         end
     end
+    -- Explicitly set font face
+    local font_face = CONFIG.FONT_FACE or "Arial"
 
-    gui.drawString(x or 0, y or 0, str or "Text", color or "white", nil, font_size)
+    -- Draw the string, ensuring parameter order matches direct calls
+    gui.drawString(x or 0, y or 0, str or "Text", color or "white", nil, font_size, font_face)
 end
+texthelper = TextHelper -- Alias
 -- helper -> 'text blinker'
 TextBlinker = {
     frame = 0,
@@ -936,10 +964,12 @@ gui.clearGraphics() -- Clear GFX just in-case
 VERS_COMPATIBLE = getRandomizerVersion() == FOR_IRONMARO_VERSION and true or false
 -- **************************** Main loop: executes every frame ****************************
 while VERS_COMPATIBLE do
-	gui.use_surface("client") -- set client gfx surface
+	
 
     -- Process on every other frame to reduce CPU load.
     if emu.framecount() % 2 == 0 then
+		gui.use_surface("client") -- set client gfx surface
+	
         -- Update game state if the run isn't already pending (i.e., if it's still in progress).
         if state.run.status ~= run_state.PENDING then
             update_game_state()
@@ -959,7 +989,7 @@ while VERS_COMPATIBLE do
         render_ui() 
     end
 
-	-- throw debugging text here
+	-- ***throw debugging text here***
 	
 	-- advance frame or script will lock up
     emu.frameadvance() -- Advance to the next frame.
